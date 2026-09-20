@@ -9,6 +9,7 @@ const { generateCounterexample } = require("./counterexample");
 const { scanSamples } = require("./scan");
 const { analyzeContribution } = require("./contribution");
 const { buildVariantContract } = require("./variant");
+const { anonymizeSamples } = require("./anonymize");
 
 function createApp() {
   const app = express();
@@ -141,6 +142,23 @@ function createApp() {
     const { samples, pointer } = req.body || {};
     try {
       res.json(buildVariantContract({ samples, pointer }));
+    } catch (err) {
+      const status = err.status && err.status < 500 ? err.status : 500;
+      res.status(status).json({
+        error: status === 500 ? "Internal server error" : err.message,
+        ...(err.details || {}),
+      });
+    }
+  });
+
+  // Anonymized export: replace scalars matched by JSON Pointer patterns
+  // (single-segment "*" wildcard included) with deterministic, type-
+  // preserving pseudonyms. Refusals (illegal pointer, non-scalar hit,
+  // cross-rule path conflict) still carry the per-rule statistics.
+  app.post("/api/anonymize", (req, res) => {
+    const { samples, rules } = req.body || {};
+    try {
+      res.json(anonymizeSamples({ samples, rules }));
     } catch (err) {
       const status = err.status && err.status < 500 ? err.status : 500;
       res.status(status).json({

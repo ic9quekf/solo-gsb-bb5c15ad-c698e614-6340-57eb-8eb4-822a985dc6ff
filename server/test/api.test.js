@@ -382,6 +382,75 @@ test("POST /api/contribution validates its input", async () => {
   assert.equal(atLimit.data.total, 50);
 });
 
+test("POST /api/anonymize replaces matched scalars with stable typed pseudonyms", async () => {
+  const { status, data } = await post("/api/anonymize", {
+    samples: [
+      { id: 1, email: "a@x.com", tags: ["x", "y"] },
+      { id: 2, email: "a@x.com", tags: ["x"] },
+    ],
+    rules: ["/email", "/tags/*"],
+  });
+  assert.equal(status, 200);
+  assert.equal(data.totalSamples, 2);
+  const [emailRule, tagsRule] = data.rules;
+  assert.equal(emailRule.status, "ok");
+  assert.equal(emailRule.hits, 2);
+  assert.deepEqual(emailRule.paths, ["#/0/email", "#/1/email"]);
+  assert.equal(tagsRule.hits, 3);
+  // Stable across samples, actually replaced, type preserved.
+  assert.equal(data.samples[0].email, data.samples[1].email);
+  assert.notEqual(data.samples[0].email, "a@x.com");
+  assert.equal(typeof data.samples[0].email, "string");
+  assert.notEqual(data.samples[0].tags[0], "x");
+  assert.equal(data.samples[0].id, 1); // untouched
+});
+
+test("POST /api/anonymize refuses illegal pointers, non-scalar hits and conflicts with 422 + rule stats", async () => {
+  const illegal = await post("/api/anonymize", { samples: [{ a: 1 }], rules: ["a"] });
+  assert.equal(illegal.status, 422);
+  assert.equal(illegal.data.rules[0].status, "invalid");
+  assert.match(illegal.data.error, /规则 1/);
+  assert.equal(illegal.data.samples, undefined);
+
+  const nonScalar = await post("/api/anonymize", {
+    samples: [{ a: { b: 1 } }],
+    rules: ["/a"],
+  });
+  assert.equal(nonScalar.status, 422);
+  assert.equal(nonScalar.data.rules[0].status, "non-scalar");
+  assert.match(nonScalar.data.rules[0].error, /对象/);
+
+  const conflict = await post("/api/anonymize", {
+    samples: [{ a: { b: 1 } }],
+    rules: ["/a/*", "/a/b"],
+  });
+  assert.equal(conflict.status, 422);
+  assert.equal(conflict.data.rules[0].status, "conflict");
+  assert.equal(conflict.data.rules[1].status, "conflict");
+  assert.equal(conflict.data.samples, undefined);
+});
+
+test("POST /api/anonymize validates its input", async () => {
+  const noSamples = await post("/api/anonymize", { rules: ["/a"] });
+  assert.equal(noSamples.status, 400);
+  assert.match(noSamples.data.error, /'samples' array/);
+
+  const noRules = await post("/api/anonymize", { samples: [{ a: 1 }], rules: [] });
+  assert.equal(noRules.status, 400);
+  assert.match(noRules.data.error, /'rules' array/);
+
+  const badRule = await post("/api/anonymize", { samples: [{ a: 1 }], rules: [42] });
+  assert.equal(badRule.status, 400);
+  assert.match(badRule.data.error, /JSON Pointer string/);
+
+  const tooMany = await post("/api/anonymize", {
+    samples: Array.from({ length: 201 }, () => ({})),
+    rules: ["/a"],
+  });
+  assert.equal(tooMany.status, 400);
+  assert.match(tooMany.data.error, /200/);
+});
+
 test("malformed JSON body gets a JSON 400", async () => {
   const res = await fetch(`${base}/api/infer`, {
     method: "POST",

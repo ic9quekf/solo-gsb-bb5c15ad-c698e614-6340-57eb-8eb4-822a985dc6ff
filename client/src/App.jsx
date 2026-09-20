@@ -4,6 +4,7 @@ import SchemaTree from "./components/SchemaTree.jsx";
 import ValidatePanel from "./components/ValidatePanel.jsx";
 import DiffPanel from "./components/DiffPanel.jsx";
 import ContributionPanel from "./components/ContributionPanel.jsx";
+import AnonymizePanel from "./components/AnonymizePanel.jsx";
 import VariantPanel from "./components/VariantPanel.jsx";
 import { inferSchema } from "./api.js";
 import { DEFAULT_SAMPLES } from "./defaultSamples.js";
@@ -196,6 +197,12 @@ export default function App() {
             allValid={allValid}
             signature={samplesSignature}
             onLocate={locateSample}
+          />
+
+          <AnonymizePanel
+            samples={parsed.map((p) => (p.ok ? p.value : null))}
+            allValid={allValid}
+            signature={samplesSignature}
           />
         </section>
 
