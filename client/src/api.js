@@ -46,3 +46,7 @@ export function analyzeContribution(samples) {
 export function generateVariantContract(samples, pointer) {
   return request("/api/variant", { samples, pointer });
 }
+
+export function anonymizeSamples(samples, rules) {
+  return request("/api/anonymize", { samples, rules });
+}

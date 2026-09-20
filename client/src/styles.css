@@ -1058,6 +1058,121 @@ body {
   border: 1px solid rgba(79, 140, 255, 0.3);
 }
 
+/* ---------- anonymized export ---------- */
+
+.anonymize {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.anonymize .actions {
+  margin-top: 10px;
+}
+
+.anonymize-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.anonymize-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anonymize-rule__label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.anonymize-rule__input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 8px 10px;
+}
+
+.anonymize-rule__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.anonymize-rule-results {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.anonymize-rule-result {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.anonymize-rule-result--err {
+  border-left: 3px solid var(--err);
+}
+
+.anonymize-rule-result__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.anonymize-rule-result__label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.anonymize-rule-result__pattern {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #ffb86b;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.anonymize-rule-result__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.anonymize-detail-block {
+  margin-top: 12px;
+}
+
+.anonymize-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+
+.anonymize-preview {
+  max-height: 40vh;
+  margin: 10px 0 0;
+}
+
 /* ---------- event variant contract ---------- */
 
 .variant-panel .actions {

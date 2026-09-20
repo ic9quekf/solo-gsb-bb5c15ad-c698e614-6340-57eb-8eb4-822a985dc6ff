@@ -4,6 +4,7 @@ import SchemaTree from "./components/SchemaTree.jsx";
 import ValidatePanel from "./components/ValidatePanel.jsx";
 import DiffPanel from "./components/DiffPanel.jsx";
 import ContributionPanel from "./components/ContributionPanel.jsx";
+import AnonymizePanel from "./components/AnonymizePanel.jsx";
 import VariantPanel from "./components/VariantPanel.jsx";
 import { inferSchema } from "./api.js";
 import { DEFAULT_SAMPLES } from "./defaultSamples.js";
@@ -147,7 +148,8 @@ export default function App() {
         <p>
           粘贴多份 JSON 样本，递归归纳出 JSON Schema 2020-12 接口契约；自动处理字段缺失、null、
           异构数组与类型冲突，可校验新样本、逐条评估样本贡献度（关键/冗余），并支持把归纳结果设为基线、
-          按请求体/响应体视角对比契约演进；还可按判别字段把样本分组，生成带 oneOf 分支的事件变体契约。
+          按请求体/响应体视角对比契约演进；还可按判别字段把样本分组，生成带 oneOf 分支的事件变体契约，
+          或按 JSON Pointer 规则把样本中的敏感标量替换为稳定匿名值后导出。
         </p>
       </header>
 
@@ -196,6 +198,12 @@ export default function App() {
             allValid={allValid}
             signature={samplesSignature}
             onLocate={locateSample}
+          />
+
+          <AnonymizePanel
+            samples={parsed.map((p) => (p.ok ? p.value : null))}
+            allValid={allValid}
+            signature={samplesSignature}
           />
         </section>
 

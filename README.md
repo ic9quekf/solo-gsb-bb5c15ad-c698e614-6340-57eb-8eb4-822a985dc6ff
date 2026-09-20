@@ -10,7 +10,9 @@
 仅当前通过、两版均失败），
 通过**发布门禁**结合基线/目标 SemVer 给出允许或阻止发布的结论与可复制报告，
 并可按**判别字段**把样本分组生成**事件变体契约**（每组复用归纳引擎生成一个 `oneOf` 分支，
-分支内判别字段固定为对应 `const`）。
+分支内判别字段固定为对应 `const`），
+还能配置多条 **JSON Pointer 规则**（支持 RFC 6901 转义与单段 `*` 通配）对样本做**匿名化导出**：
+命中的标量值被替换为跨样本稳定、保留 JSON 类型的匿名值，先预览各规则命中情况再一键复制。
 
 技术栈：Node.js · Express · React（Vite）· Ajv（draft 2020-12）
 
@@ -69,6 +71,11 @@ docker compose up --build
   判别字段缺失、值为对象/数组/null 或 Pointer 转义非法的样本不参与生成，并按样本序号列出原因；
   有效分组不足 2 个时拒绝产出。结果区展示分组数量、样本数与各分支 Schema，可一键复制完整契约，
   并可一键接入「③ 校验新样本」验证新样本。
+- **匿名化导出**：在「① 样本输入」区配置多条 JSON Pointer 规则（`~0`/`~1` 转义，单段 `*` 通配
+  对象键或数组下标），后端递归匹配最多 200 条样本，把命中的标量值替换为跨样本稳定、保留 JSON
+  类型的匿名值：同一规则下相同原值映射一致、不同原值绝不合并、整数不会变成小数。结果区先展示
+  各规则命中数、未命中样本与错误明细，确认后再一键复制匿名化样本；非法 Pointer、命中对象/数组
+  或不同规则命中同一路径时拒绝生成，规则或样本一变旧预览立即失效。
 
 ## 契约演进：操作说明
 
@@ -200,6 +207,38 @@ ASCII 比较）；构建元数据（`+build`）可解析但不参与比较。结
   （校验页也可随时在「归纳 Schema / 事件变体契约」之间切换校验目标）。
 - 单次最多 200 条样本；任何样本或判别字段修改都会使上次生成结果失效。
 
+## 匿名化导出：规则与判定
+
+入口：**http://localhost:8080** 页面的「① 样本输入 → 匿名化导出」区，或直接调用
+`POST /api/anonymize`。适合把含敏感信息的样本分享出去前做脱敏：配置一条或多条
+JSON Pointer 规则，后端把规则命中的标量值替换为匿名值后返回整组样本。
+
+**规则语法（RFC 6901 + 通配符）**：
+
+- 须以 `/` 开头逐段匹配；`~` 转义仅支持 `~0`（表示 `~`）与 `~1`（表示 `/`），
+  可定位含特殊字符的键名；空字符串 `""` 表示根节点（仅对标量样本有意义）。
+- 单段 `*` 为通配符：在对象上匹配所有键、在数组上匹配所有下标（仅一段，如
+  `/users/*/phone`、`/tags/*`）；字面量数字段按 RFC 6901 匹配数组下标（如 `/list/0`）。
+  因此字面量键名 `*` 无法被单独寻址。
+
+**替换规则**：
+
+- 仅替换**标量**（字符串 / 数字 / 布尔 / null）；替换值由加盐 SHA-256 派生，确定性、
+  跨样本稳定：同一规则下相同原值永远映射为同一匿名值，不同原值绝不合并（哈希冲突时
+  确定性探测避让）。
+- **保留 JSON 类型**：字符串 → `anon_<hash>` 字符串；整数 → 整数（安全范围内，
+  不会变成小数）；非整数 → 非整数；布尔与 null 无可替换空间，按原值保留。
+- 不同规则的映射相互独立（以规则文本为盐），同一原值在不同规则下得到不同匿名值。
+
+**产出与拒绝**：
+
+- 成功（200）时返回各规则命中数、未命中样本序号、不同取值个数与整组匿名化样本；
+  界面先展示这些统计，确认后再一键复制（或展开预览）匿名化样本。
+- 任一规则 Pointer 非法、任一命中落在对象/数组上、或不同规则命中同一路径（含两条
+  完全相同的规则）时拒绝生成（HTTP 422），响应仍携带各规则命中统计与具体冲突位置
+  （每类明细最多列出 50 条，附总数）。
+- 单次最多 200 条样本、50 条规则；任何规则或样本内容修改都会使上次预览立即失效。
+
 ## 本地开发
 
 ```bash
@@ -213,7 +252,7 @@ npm run dev:client   # 前端 http://localhost:5173（/api 代理到 8080）
 ## 测试
 
 ```bash
-npm test             # node:test，覆盖归纳引擎、契约比较器、反例生成器、样本影响扫描、样本贡献度、事件变体契约、HTTP API 与发布门禁（122 项）
+npm test             # node:test，覆盖归纳引擎、契约比较器、反例生成器、样本影响扫描、样本贡献度、事件变体契约、匿名化导出、HTTP API 与发布门禁（146 项）
 ```
 
 ## API
@@ -228,6 +267,7 @@ npm test             # node:test，覆盖归纳引擎、契约比较器、反例
 | POST | `/api/scan` | `{ oldSchema, newSchema, samples: [<any>, ...] }`（≤ 200 条） | `{ total, summary: { both, baselineOnly, currentOnly, neither }, samples: [{ index, category, baseline: { valid, errors }, current: { valid, errors } }] }` |
 | POST | `/api/contribution` | `{ samples: [<any>, ...] }`（1–50 条） | `{ total, summary: { critical, redundant }, samples: [{ index, verdict, affectedPointers }] }` |
 | POST | `/api/variant` | `{ samples: [<any>, ...], pointer: "/type" }`（≤ 200 条） | `{ pointer, totalSamples, validSamples, groupCount, groups: [{ value, count, sampleIndexes, schema, paths }], skipped: [{ index, reason }], schema: { $schema, oneOf } }`；有效分组不足 2 个或 Pointer 非法时返回 422，响应体仍携带分组概要与跳过明细 |
+| POST | `/api/anonymize` | `{ samples: [<any>, ...], rules: ["/email", "/users/*/phone"] }`（≤ 200 条样本、≤ 50 条规则） | `{ totalSamples, replacedCount, rules: [{ index, pattern, hits, distinctValues, missedSamples }], samples: [<匿名化样本>] }`；Pointer 非法、命中对象/数组或规则冲突时返回 422，响应体仍携带各规则统计与 `nonScalarHits` / `conflicts` 明细 |
 
 示例：
 
@@ -296,6 +336,29 @@ curl -X POST http://localhost:8080/api/variant \
 #      "schema": { "$schema": ".../2020-12/schema", "oneOf": [<两个分支>] } }
 ```
 
+按 JSON Pointer 规则匿名化样本（通配符 + 稳定替换）：
+
+```bash
+curl -X POST http://localhost:8080/api/anonymize \
+  -H 'Content-Type: application/json' \
+  -d '{"samples":[
+        {"id":1,"name":"Alice","email":"alice@x.io","tags":["vip","new"]},
+        {"id":2,"name":"Alice","email":"bob@x.io","tags":["vip"]}],
+       "rules":["/name","/email","/tags/*"]}'
+# -> { "totalSamples": 2, "replacedCount": 7,
+#      "rules": [
+#        { "index": 0, "pattern": "/name",  "hits": 2, "missedSamples": [], "distinctValues": 1 },
+#        { "index": 1, "pattern": "/email", "hits": 2, "missedSamples": [], "distinctValues": 2 },
+#        { "index": 2, "pattern": "/tags/*","hits": 3, "missedSamples": [], "distinctValues": 2 } ],
+#      "samples": [
+#        { "id": 1, "name": "anon_7353b029a380", "email": "anon_52409e15eb9e",
+#          "tags": ["anon_...", "anon_..."] },
+#        { "id": 2, "name": "anon_7353b029a380", "email": "anon_a73f47cd3f90",
+#          "tags": ["anon_..."] } ] }
+# 注：两个样本中的 "Alice" 被替换为同一匿名值（跨样本稳定），"vip" 同理；
+#     实际匿名值由加盐哈希决定，上例仅为示意。
+```
+
 ## 目录结构
 
 ```
@@ -309,7 +372,8 @@ curl -X POST http://localhost:8080/api/variant \
 │   ├── scan.js             # 样本影响扫描器（Ajv 双侧逐条校验 + 四分类，单次上限 200 条）
 │   ├── contribution.js     # 样本贡献度分析（留一法重新归纳 + 规范化规则差异判定，单次上限 50 条）
 │   ├── variant.js          # 事件变体契约（判别字段分组 + 逐组归纳 + const 注入，合并 oneOf，单次上限 200 条）
-│   ├── app.js              # Express（/api/infer、/api/validate、/api/diff、/api/counterexample、/api/scan、/api/contribution、/api/variant、静态托管）
+│   ├── anonymize.js        # 匿名化导出（JSON Pointer + * 通配递归匹配，跨样本稳定、保留类型的标量替换，单次上限 200 条 / 50 条规则）
+│   ├── app.js              # Express（/api/infer、/api/validate、/api/diff、/api/counterexample、/api/scan、/api/contribution、/api/variant、/api/anonymize、静态托管）
 │   ├── index.js            # 入口：监听 PORT（默认 8080）
 │   └── test/               # node:test 单元与 API 测试
 └── client/
@@ -323,6 +387,7 @@ curl -X POST http://localhost:8080/api/variant \
         ├── components/CounterexamplePanel.jsx # 反例：样本格式化展示、双侧校验结果、复制按钮
         ├── components/SampleScanPanel.jsx  # 样本影响扫描：数组输入、四分类汇总、单条双侧错误展开
         ├── components/ContributionPanel.jsx # 样本贡献度：留一法分析入口、关键/冗余汇总筛选、定位原样本
+        ├── components/AnonymizePanel.jsx    # 匿名化导出：规则编辑、命中/未命中/错误明细、复制与预览匿名样本
         ├── components/VariantPanel.jsx    # 事件变体：判别 Pointer 输入、分组/跳过明细、分支 Schema、复制与接入校验
         ├── components/ReleaseGate.jsx   # 发布门禁卡片：版本输入、放行结论、报告复制
         └── components/SampleEditor.jsx  # 样本编辑器（实时 JSON 校验）
